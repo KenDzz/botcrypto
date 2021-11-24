@@ -12,6 +12,7 @@
   "dependencies": {
     "@google-cloud/translate": "^6.3.1",
     "binance-api-node": "^0.11.22",
+    "cheerio": "^1.0.0-rc.10",
     "coinmarketcap-api": "^3.1.1",
     "currency.js": "^2.0.4",
     "dotenv": "^10.0.0",
@@ -19,6 +20,7 @@
     "mongoose": "^6.0.13",
     "node-schedule": "^2.0.0",
     "node-telegram-bot-api": "^0.54.0",
+    "request-promise": "^4.2.6",
     "translate": "^1.4.1"
   }
 }

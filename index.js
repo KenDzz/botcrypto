@@ -6,6 +6,9 @@ import translate from "translate";
 import schedule from "node-schedule";
 import mongo from "mongodb";
 import mongoose from 'mongoose';
+import rp from 'request-promise';
+import cheerio from 'cheerio';
+import fs from 'fs';
 import { formatMoney } from './utils/money.js'
 
 dotenv.config()
@@ -64,6 +67,8 @@ var db = mongoose.connection;
 
   //priceCrypto(chatId,cryptoToken1)
 
+
+
 //schedule Job 
 bot.on('message', (msg) => {
   schedule.scheduleJob('* * * * * *', function(fireDate){
@@ -88,17 +93,27 @@ function insert_schedule_price(msg,time,crypto) {
 }
 
 function insert_price_quote(msg,price,crypto) {
-  var schedule_prices = {
-    _id: new ObjectID(),
-    id: msg.from.id,
-    username: msg.from.username,
-    price: price,
-    crypto: crypto,
-    status: true,
-    timestamp: msg.date
-  };
+  CoinMarketCapClient.getQuotes({symbol: `${crypto}`.toUpperCase()}).then(
+    (avgPrice) => {
+        var slug = avgPrice['data'][crypto.toUpperCase()]['slug']
+        var name = avgPrice['data'][crypto.toUpperCase()]['name']
+        var price_quote = {
+        _id: new ObjectID(),
+        id: msg.from.id,
+        username: msg.from.username,
+        price: price,
+        crypto: crypto,
+        name: name,
+        slug: slug,
+        status: true,
+        timestamp: msg.date
+      };
 
-  db.collection('price_quote').insert(schedule_prices);
+      db.collection('price_quote').insert(price_quote);
+    }
+  ).catch((error) =>
+    console.log(error)
+  )
 }
 
 function find_price_quote_exist(msg,price,crypto) {
@@ -130,7 +145,7 @@ function find_price_quote(id,chatId) {
 
   quote.forEach(
     function(doc) {
-      priceQuote(doc.crypto,chatId,doc.price)
+      priceQuote(doc.crypto,chatId,doc.price,doc.slug,doc.name)
     }, 
     function(err) {
       console.log("Error: "+err)
@@ -160,34 +175,32 @@ async function translateVN(msg) {
 	return await translate(msg,"vi")
 }
 
-function priceQuote(cryptoToken1,chatId,priceQuote) {
-    CoinMarketCapClient.getQuotes({symbol: `${cryptoToken1}`.toUpperCase()}).then(
-    (avgPrice) => {
-      const price = avgPrice['data'][cryptoToken1.toUpperCase()]['quote']['USD']['price']
-      const volume_24h = formatMoney(avgPrice['data'][cryptoToken1.toUpperCase()]['quote']['USD']['volume_24h'])
-      const market_cap = formatMoney(avgPrice['data'][cryptoToken1.toUpperCase()]['quote']['USD']['market_cap'])
-      const percent_change_1h = avgPrice['data'][cryptoToken1.toUpperCase()]['quote']['USD']['percent_change_1h'].toString()
-      const percent_change_24h = avgPrice['data'][cryptoToken1.toUpperCase()]['quote']['USD']['percent_change_24h'].toString()
-      const percent_change_7d = avgPrice['data'][cryptoToken1.toUpperCase()]['quote']['USD']['percent_change_7d'].toString()
-      const percent_change_30d = avgPrice['data'][cryptoToken1.toUpperCase()]['quote']['USD']['percent_change_30d'].toString()
-      const percent_change_60d = avgPrice['data'][cryptoToken1.toUpperCase()]['quote']['USD']['percent_change_60d'].toString()
-      const percent_change_90d = avgPrice['data'][cryptoToken1.toUpperCase()]['quote']['USD']['percent_change_90d'].toString()
-      const percent_change_1h_emoji = percent_change_1h.charAt(0) == "-" ? '\u{1F4C9}':'\u{1F4C8}'
-      const percent_change_24h_emoji = percent_change_24h.charAt(0) == "-" ? '\u{1F4C9}':'\u{1F4C8}'
-      const percent_change_7d_emoji = percent_change_7d.charAt(0) == "-" ? '\u{1F4C9}':'\u{1F4C8}'
-      const percent_change_30d_emoji = percent_change_30d.charAt(0) == "-" ? '\u{1F4C9}':'\u{1F4C8}'
-      const percent_change_60d_emoji = percent_change_60d.charAt(0) == "-" ? '\u{1F4C9}':'\u{1F4C8}'
-      const percent_change_90d_emoji = percent_change_90d.charAt(0) == "-" ? '\u{1F4C9}':'\u{1F4C8}'
-      if (priceQuote == price) {
-        bot.sendMessage(chatId, '\u{1F4B0} '+cryptoToken1+' đã đạt đến giá: <pre>$'+price+'</pre>\n\n\u{1F4B0}Khối lượng giao dịch(24h): <pre>'+volume_24h+'</pre>\n\n\u{1F4B0}Vốn hóa thị trường  : <pre>'+market_cap+'</pre>\n\nThay đổi giá sau 1h:'+percent_change_1h_emoji.concat('<pre>',percent_change_1h,'%','</pre>')+'\n\nThay đổi giá sau 24h:'+percent_change_24h_emoji.concat('<pre>',percent_change_24h,'%','</pre>')+'\n\nThay đổi giá sau 1 ngày:'+percent_change_24h_emoji.concat('<pre>',percent_change_24h,'%','</pre>')+'\n\nThay đổi giá sau 1 tháng:'+percent_change_30d_emoji.concat('<pre>',percent_change_30d,'%','</pre>')+'\n\nThay đổi giá sau 2 tháng:'+percent_change_60d_emoji.concat('<pre>',percent_change_60d,'%','</pre>')+'\n\nThay đổi giá sau 3 tháng:'+percent_change_90d_emoji.concat('<pre>',percent_change_90d,'%','</pre>')+'\n' ,{parse_mode : "HTML"})
-      }
+function priceQuote(cryptoToken1,chatId,priceQuote,slug,name) {
+  var options = {
+    method: 'GET',
+    uri: 'https://coinmarketcap.com/currencies/'+slug,
+    headers: {
+      json: true,
+      gzip: true,
+      'User-Agent': 'Discordbot/2.0'
+    },
+    transform: function (body) {
+      return cheerio.load(body);
     }
-  ).catch((error) =>
-      bot.sendMessage(
-        chatId,
-        `Lỗi cuốn pháp! Vui lòng kiểm tra lại ${cryptoToken1}: ${error}`
-      )
-  )
+  };
+
+  rp(options)
+  .then(function ($) {
+    var cPrice = $(".priceValue").text().trim();
+    var price = cPrice.replace("$", "")
+    console.log(price)
+    if (price == priceQuote) {
+      bot.sendMessage(chatId, '\u{1F4B0} '+name+' đã đạt đến giá: $'+price+'\n\u{1F4E2}\u{1F4E2}\u{1F4E2}')
+    }
+  })
+  .catch(function (err) {
+    console.log(err)
+  });
 }
 
 function topToken(chatId, count) {
@@ -234,6 +247,7 @@ function infoCrypto(chatId, cryptoToken1) {
 function priceCrypto(chatId, cryptoToken1) {
   CoinMarketCapClient.getQuotes({symbol: `${cryptoToken1}`.toUpperCase()}).then(
     (avgPrice) => {
+      console.log(avgPrice)
       const price = avgPrice['data'][cryptoToken1.toUpperCase()]['quote']['USD']['price']
       const volume_24h = formatMoney(avgPrice['data'][cryptoToken1.toUpperCase()]['quote']['USD']['volume_24h'])
       const market_cap = formatMoney(avgPrice['data'][cryptoToken1.toUpperCase()]['quote']['USD']['market_cap'])
