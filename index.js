@@ -97,11 +97,13 @@ function insert_price_quote(msg,price,crypto) {
     (avgPrice) => {
         var slug = avgPrice['data'][crypto.toUpperCase()]['slug']
         var name = avgPrice['data'][crypto.toUpperCase()]['name']
+        var price_now = avgPrice['data'][crypto.toUpperCase()]['quote']['USD']['price']
         var price_quote = {
         _id: new ObjectID(),
         id: msg.from.id,
         username: msg.from.username,
         price: price,
+        pricen: price_now,
         crypto: crypto,
         name: name,
         slug: slug,
@@ -116,6 +118,18 @@ function insert_price_quote(msg,price,crypto) {
   )
 }
 
+
+function update_status_price_quote(msg,price,crypto) {
+  var myquery = { 
+      "id": msg.from.id,
+      "price": price,
+      "crypto": crypto
+  };
+  var newvalues = { $set: {status: "false" } };
+
+  db.collection('price_quote').updateOne(myquery, newvalues)
+}
+
 function find_price_quote_exist(msg,price,crypto) {
   var query = {
       "id": msg.from.id,
@@ -128,9 +142,30 @@ function find_price_quote_exist(msg,price,crypto) {
   quote.then(function(result) {
     if (result == null) {
       insert_price_quote(msg,price,crypto)
-      bot.sendMessage(msg.chat.id, 'Đặt lệnh báo giá thành công!\nCoin: '+crypto+'\nGiá: '+price+'\nChúc bạn sớm đạt được target mong muốn \u{2708}')
+      bot.sendMessage(msg.chat.id, 'Đặt lệnh báo giá thành công!\nCoin: '+crypto+'\nGiá target: '+price+'\nChúc bạn sớm đạt được target mong muốn \u{2708}')
     }else {
       bot.sendMessage(msg.chat.id, 'Vui lòng không đặt lệnh trùng nhau!')
+    }
+  })
+
+}
+
+
+function find_price_quote_exist_off(msg,price,crypto) {
+  var query = {
+      "id": msg.from.id,
+      "price": price,
+      "crypto": crypto
+  };
+    
+  var quote = db.collection('price_quote').findOne(query);
+
+  quote.then(function(result) {
+    if (result == null) {
+      bot.sendMessage(msg.chat.id, 'Không tìm thấy lệnh báo giá!')
+    }else {
+      update_status_price_quote(msg,price,crypto)
+      bot.sendMessage(msg.chat.id, 'Tắt lệnh báo giá thành công!\nTên: '+crypto+'\nGiá: '+price)
     }
   })
 
@@ -145,7 +180,9 @@ function find_price_quote(id,chatId) {
 
   quote.forEach(
     function(doc) {
-      priceQuote(doc.crypto,chatId,doc.price,doc.slug,doc.name)
+      if (doc.status == "true") {
+        priceQuote(doc.crypto,chatId,doc.price,doc.slug,doc.name,doc.pricen)
+      }
     }, 
     function(err) {
       console.log("Error: "+err)
@@ -175,7 +212,7 @@ async function translateVN(msg) {
 	return await translate(msg,"vi")
 }
 
-function priceQuote(cryptoToken1,chatId,priceQuote,slug,name) {
+function priceQuote(cryptoToken1,chatId,priceQuote,slug,name,pricen) {
   var options = {
     method: 'GET',
     uri: 'https://coinmarketcap.com/currencies/'+slug,
@@ -193,14 +230,27 @@ function priceQuote(cryptoToken1,chatId,priceQuote,slug,name) {
   .then(function ($) {
     var cPrice = $(".priceValue").text().trim();
     var price = cPrice.replace("$", "")
-    console.log(price)
     if (price == priceQuote) {
-      bot.sendMessage(chatId, '\u{1F4B0} '+name+' đã đạt đến giá: $'+price+'\n\u{1F4E2}\u{1F4E2}\u{1F4E2}')
+      var percentage_t = percentage(price,pricen).toString()
+      const percentage_emoji = percentage_t.charAt(0) == "-" ? '\u{1F4C9}':'\u{1F4C8}'
+      bot.sendMessage(chatId, '\u{1F4B0} '+name+' đã đạt đến giá: $'+price+'\nGiá trị '+percentage_emoji+' '+percentage_t+'% so với giá lúc đặt target ('+pricen+')\n\u{1F4E2}\u{1F4E2}\u{1F4E2}')
     }
   })
   .catch(function (err) {
     console.log(err)
   });
+}
+
+
+function percentage(a,b) {
+  var t = (b-a)
+  return t/a*100
+}
+
+function percentage_price(chatId,price_f,price_s) {
+  var percentage_t = percentage(price_f,price_s).toString()
+  const percentage_emoji = percentage_t.charAt(0) == "-" ? '\u{1F4C9}':'\u{1F4C8}'
+  bot.sendMessage(chatId, 'Giá trị '+percentage_emoji+' '+percentage_t+'% so với giá lúc ban đầu ('+price_f+')\n\u{1F4E2}\u{1F4E2}\u{1F4E2}')
 }
 
 function topToken(chatId, count) {
@@ -247,7 +297,6 @@ function infoCrypto(chatId, cryptoToken1) {
 function priceCrypto(chatId, cryptoToken1) {
   CoinMarketCapClient.getQuotes({symbol: `${cryptoToken1}`.toUpperCase()}).then(
     (avgPrice) => {
-      console.log(avgPrice)
       const price = avgPrice['data'][cryptoToken1.toUpperCase()]['quote']['USD']['price']
       const volume_24h = formatMoney(avgPrice['data'][cryptoToken1.toUpperCase()]['quote']['USD']['volume_24h'])
       const market_cap = formatMoney(avgPrice['data'][cryptoToken1.toUpperCase()]['quote']['USD']['market_cap'])
@@ -301,20 +350,32 @@ bot.onText(/\/schedule -t (.+)/, (msg, data) => {
 bot.onText(/\/quote -p (.+)/, (msg, data) => {
   const chatId = msg.chat.id
   const cryptoToken1 = data[1].split(' ')
-  find_price_quote_exist(msg,cryptoToken1[0],cryptoToken1[1])
+  if (cryptoToken1[2] == 'off') {
+    find_price_quote_exist_off(msg,cryptoToken1[0],cryptoToken1[1])
+  }else{
+    find_price_quote_exist(msg,cryptoToken1[0],cryptoToken1[1])
+  }
+})
+
+bot.onText(/\/percentage (.+)/, (msg, data) => {
+  const chatId = msg.chat.id
+  const price = data[1].split(' ')
+  percentage_price(chatId,price[0],price[1])
 })
 
 bot.on('message', (msg) => {
   const chatId = msg.chat.id
 
   switch (msg.text) {
-    case '/start':
-      bot.sendMessage(chatId, 'Anh Quá Dz! Xin chào.')
+    case 'Bắt đầu':
+      bot.sendMessage(chatId, 'Hệ thống BOT báo giá tiền điện tử. Đang trong quá trình phát triển')
       break
-    case '/help':
-      bot.sendMessage(chatId, 'Sử dụng lệnh /price -b (Tên tiền ảo) VD: /price -b DOGE -> Xem giá... Lưu ý: Đang trong quá trình dev chỉ xem được những đồng đã list Binance', {"reply_markup": {"keyboard": [["/start"], ["/help"]]}})
+    case 'Trợ giúp':
+      bot.sendMessage(chatId, 'Xem giá: /price (Tên tiền ảo) VD: /price DOGE\n\nXem thông tin: /info (Tên tiền ảo) VD: /info DOGE\n\nXem top: /top (số top) VD: /top 10\n\nLên lịch báo giá: /quote -p (giá cần báo) (Tên tiền ảo) VD: /quote -p 0.3 DOGE\n Tắt lịch báo giá:/quote -p (giá cần báo) (Tên tiền ảo) off VD: /quote -p 0.3 DOGE off\n\nTính giá trị gia tăng hoặc giảm: /percentage (giá ban đầu) (giá sau khi tăng hoặc giảm) VD: /percentage 0.2 0.3', {"reply_markup": {"keyboard": [["Bắt đầu"], ["Trợ giúp"], ["About"]]}})
       break
-
+    case 'About':
+      bot.sendMessage(chatId, 'Develop by KenDzz\n<a href="https://www.facebook.com/Rin.Boss.Rin/">Facebook</a>\n<a href="https://github.com/KenDzz">Github</a>',{parse_mode : "HTML"})
+      break
     default:
       break
   }
