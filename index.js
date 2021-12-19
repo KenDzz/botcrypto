@@ -9,11 +9,11 @@ import mongoose from 'mongoose';
 import rp from 'request-promise';
 import cheerio from 'cheerio';
 import fs from 'fs';
+import CronJob from 'node-cron';
+import moment from 'moment';
 import { formatMoney } from './utils/money.js'
 
 dotenv.config()
-
-
 
 // API keys can be generated here https://www.binance.com/en/my/settings/api-management
 const binanceClient = Binance.default({
@@ -24,9 +24,20 @@ const binanceClient = Binance.default({
 // API CoinMarketCap
 const CoinMarketCapClient = new CoinMarketCap(process.env.COINMARKETCAP_API_KEY)
 
-
 // The bot token can be obtained from BotFather https://core.telegram.org/bots#3-how-do-i-create-a-bot
 const bot = new TelegramBot(process.env.TELEGRAMM_BOT_TOKEN, { polling: true })
+
+
+
+function getIDChannel() {
+    return new Promise(resolve => {
+        bot.getChat(process.env.TELEGRAMM_CHANNEL).then(
+          (channel) => {
+            resolve(channel['id'])
+          }
+        )
+    });
+}
 
 
 // Connect to the db
@@ -37,12 +48,83 @@ mongoose.connect(process.env.MONGODB_URL, { useNewUrlParser: true, useUnifiedTop
     console.log("\nConnected to %s", process.env.MONGODB_URL);
     console.log("App is running ... \n");
     console.log("Press CTRL + C to stop the process. \n");
+    (async () => {
+        const idChannel = await getIDChannel();
+        bot.sendMessage(idChannel, 'Bảo trì hệ thống Bot tiền ảo hoàn tất!');
+    })();
+
   }
 }).catch(err => {
     console.error("App starting error:", err.message);
     process.exit(1);
 });
 var db = mongoose.connection;
+
+//check Ctrl + C
+process.on('SIGINT', function() {
+    (async () => {
+        const idChannel = await getIDChannel();
+        bot.sendMessage(idChannel, 'Bắt đầu bảo trì hệ thống Bot tiền ảo sau 3 giây nữa!');
+    })();
+    setTimeout(function () {
+      process.exit(1);
+    }, 3000)
+});
+
+CronJob.schedule('1 9 * * *', () => {
+  getNews()
+}, {
+   scheduled: true,
+   timezone: "Asia/Ho_Chi_Minh"
+ });
+
+
+function getToday() {
+  var today = new Date();
+  var dd = String(today.getDate()).padStart(2, '0');
+  var mm = String(today.getMonth() + 1).padStart(2, '0'); //January is 0!
+  var yyyy = today.getFullYear();
+
+  today = mm + '/' + dd + '/' + yyyy;
+  return today
+}
+
+
+async function getNews() {
+    var options = {
+    method: 'GET',
+    uri: 'https://tapchibitcoin.io/',
+    headers: {
+      json: true,
+      gzip: true,
+      'User-Agent': 'Discordbot/2.0'
+    },
+    transform: function (body) {
+      return cheerio.load(body);
+    }
+  };
+
+  rp(options)
+  .then(function ($) {
+    var news  = []
+    var today = moment(new Date()).format("DD/MM/YYYY")
+    $('.td-block-span12').each((index, el) => { // lặp từng phần tử có class là job__list-item
+      if ($(el).find('.td-post-date').text() == today) {
+        news.push("- "+$(el).find('.entry-title').text());
+      }
+    })
+    setTimeout(function(){
+      (async () => {
+        const idChannel = await getIDChannel();
+        bot.sendMessage(idChannel, '\u{1F4E3}\u{1F4E3} Tin tức tiền ảo ngày '+today+'\u{1F4E3}\u{1F4E3}\n\n'+news.join('\n\n'));
+      })();
+    }, 3000);
+  })
+  .catch(function (err) {
+    console.log(err)
+  });
+}
+
 
 
 // Matches "/price [symbol]"
@@ -77,6 +159,7 @@ bot.on('message', (msg) => {
     find_price_quote(msg.from.id,msg.chat.id)
   });
 })
+
 
 function insert_schedule_price(msg,time,crypto) {
   var schedule_prices = {
@@ -185,7 +268,9 @@ function find_price_quote(id,chatId) {
       }
     }, 
     function(err) {
-      console.log("Error: "+err)
+      if (err != "") {
+        console.log("Error: "+err)
+      }
     })
 
 }
