@@ -480,7 +480,7 @@ bot.on('message', (msg) => {
       bot.sendMessage(chatId, 'Hệ thống BOT báo giá tiền điện tử. Đang trong quá trình phát triển')
       break
     case 'Trợ giúp':
-      bot.sendMessage(chatId, 'Xem giá: /price (Tên tiền ảo) VD: /price DOGE\n\nXem thông tin: /info (Tên tiền ảo) VD: /info DOGE\n\nXem top: /top (số top) VD: /top 10\n\nLên lịch báo giá: /quote -p (giá cần báo) (Tên tiền ảo) VD: /quote -p 0.3 DOGE\n Tắt lịch báo giá:/quote -p (giá cần báo) (Tên tiền ảo) off VD: /quote -p 0.3 DOGE off\n\nTính giá trị gia tăng hoặc giảm: /percentage (giá ban đầu) (giá sau khi tăng hoặc giảm) VD: /percentage 0.2 0.3', {"reply_markup": {"keyboard": [["Bắt đầu"], ["Trợ giúp"], ["About"]]}})
+      bot.sendMessage(chatId, 'Xem giá: /price (Tên tiền ảo) VD: /price DOGE\n\nXem thông tin: /info (Tên tiền ảo) VD: /info DOGE\n\nXem top: /top (số top) VD: /top 10\n\nLên lịch báo giá: /quote -p (giá cần báo) (Tên tiền ảo) VD: /quote -p 0.3 DOGE\n Tắt lịch báo giá:/quote -p (giá cần báo) (Tên tiền ảo) off VD: /quote -p 0.3 DOGE off\n\nTính giá trị gia tăng hoặc giảm: /percentage (giá ban đầu) (giá sau khi tăng hoặc giảm) VD: /percentage 0.2 0.3\n\nXem biểu đồ tiền ảo : /c tên đồng tiền ảo . VD: /c btc', {"reply_markup": {"keyboard": [["Bắt đầu"], ["Trợ giúp"], ["About"]]}})
       break
     case 'About':
       bot.sendMessage(chatId, 'Develop by KenDzz\n<a href="https://www.facebook.com/Rin.Boss.Rin/">Facebook</a>\n<a href="https://github.com/KenDzz">Github</a>',{parse_mode : "HTML"})
