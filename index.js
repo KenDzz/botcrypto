@@ -11,6 +11,8 @@ import cheerio from 'cheerio';
 import fs from 'fs';
 import CronJob from 'node-cron';
 import moment from 'moment';
+import Request from 'request';
+
 import { formatMoney } from './utils/money.js'
 
 dotenv.config()
@@ -29,6 +31,7 @@ const bot = new TelegramBot(process.env.TELEGRAMM_BOT_TOKEN, { polling: true })
 
 
 
+
 function getIDChannel() {
     return new Promise(resolve => {
         bot.getChat(process.env.TELEGRAMM_CHANNEL).then(
@@ -38,6 +41,7 @@ function getIDChannel() {
         )
     });
 }
+
 
 
 // Connect to the db
@@ -407,6 +411,18 @@ function priceCrypto(chatId, cryptoToken1) {
   )
 }
 
+function checkImgChart(chatId,urlChart) {
+  Request
+  .get(urlChart)
+  .on('response', function(response) {
+    if (response.statusCode == 200) {
+      bot.sendPhoto(chatId, urlChart);
+    }else{
+      bot.sendMessage(chatId, "Hệ thống chưa hỗ trợ đồng tiền ảo này!");
+    }
+  })
+}
+
 bot.onText(/\/top (.+)/, (msg, data) => {
   const chatId = msg.chat.id
   const [count] = data[1].split(' ')
@@ -446,6 +462,14 @@ bot.onText(/\/percentage (.+)/, (msg, data) => {
   const chatId = msg.chat.id
   const price = data[1].split(' ')
   percentage_price(chatId,price[0],price[1])
+})
+
+bot.onText(/\/c (.+)/, (msg, data) => {
+  const chatId = msg.chat.id
+  const crypto = data[1].split(' ')
+  var symbol = crypto['0'].toUpperCase()+"USD"
+  var urlChart = "https://api.chart-img.com/v1/tradingview/advanced-chart?height=400&symbol="+symbol
+  checkImgChart(chatId, urlChart)
 })
 
 bot.on('message', (msg) => {
