@@ -412,14 +412,27 @@ function priceCrypto(chatId, cryptoToken1) {
 }
 
 function checkImgChart(chatId,urlChart) {
+  const path = './images/image.png';
   Request
   .get(urlChart)
   .on('response', function(response) {
     if (response.statusCode == 200) {
-      bot.sendPhoto(chatId, urlChart);
+      bot.sendMessage(chatId, "Vui lòng đợi trong giây lát!");
+      download(urlChart, path, () => {
+        console.log('✅ Done. Download Crypto Chart!')
+        bot.sendPhoto(chatId, path);
+      })
     }else{
       bot.sendMessage(chatId, "Hệ thống chưa hỗ trợ đồng tiền ảo này!");
     }
+  })
+}
+
+const download = (url, path, callback) => {
+  Request.head(url, (err, res, body) => {
+    Request(url)
+      .pipe(fs.createWriteStream(path))
+      .on('close', callback)
   })
 }
 
