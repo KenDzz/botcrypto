@@ -480,7 +480,7 @@ bot.onText(/\/percentage (.+)/, (msg, data) => {
 bot.onText(/\/c (.+)/, (msg, data) => {
   const chatId = msg.chat.id
   const crypto = data[1].split(' ')
-  var symbol = crypto['0'].toUpperCase()+"USD"
+  var symbol = crypto['0'].toUpperCase()+"USDT"
   var urlChart = "https://api.chart-img.com/v1/tradingview/advanced-chart?height=400&symbol="+symbol
   checkImgChart(chatId, urlChart)
 })
