@@ -12,7 +12,7 @@ import fs from 'fs';
 import CronJob from 'node-cron';
 import moment from 'moment';
 import Request from 'request';
-
+import axios from 'axios';
 import { formatMoney } from './utils/money.js'
 
 dotenv.config()
@@ -29,7 +29,7 @@ const CoinMarketCapClient = new CoinMarketCap(process.env.COINMARKETCAP_API_KEY)
 // The bot token can be obtained from BotFather https://core.telegram.org/bots#3-how-do-i-create-a-bot
 const bot = new TelegramBot(process.env.TELEGRAMM_BOT_TOKEN, { polling: true })
 
-
+getWhaleCrypto()
 
 
 function getIDChannel() {
@@ -65,18 +65,26 @@ mongoose.connect(process.env.MONGODB_URL, { useNewUrlParser: true, useUnifiedTop
 var db = mongoose.connection;
 
 //check Ctrl + C
-process.on('SIGINT', function() {
-    (async () => {
-        const idChannel = await getIDChannel();
-        bot.sendMessage(idChannel, 'Bắt đầu bảo trì hệ thống Bot tiền ảo sau 3 giây nữa!');
-    })();
-    setTimeout(function () {
-      process.exit(1);
-    }, 3000)
-});
-
-CronJob.schedule('1 9 * * *', () => {
+if(process.env.NODE_ENV !== "test") {
+  process.on('SIGINT', function() {
+      (async () => {
+          const idChannel = await getIDChannel();
+          bot.sendMessage(idChannel, 'Bắt đầu bảo trì hệ thống Bot tiền ảo sau 3 giây nữa!');
+      })();
+      setTimeout(function () {
+        process.exit(1);
+      }, 3000)
+  });
+}
+CronJob.schedule('* 19 * * *', () => {
   getNews()
+}, {
+   scheduled: true,
+   timezone: "Asia/Ho_Chi_Minh"
+ });
+
+CronJob.schedule('30 * * * * *', () => {
+  getWhaleCrypto()
 }, {
    scheduled: true,
    timezone: "Asia/Ho_Chi_Minh"
@@ -163,6 +171,67 @@ bot.on('message', (msg) => {
     find_price_quote(msg.from.id,msg.chat.id)
   });
 })
+
+
+function getWhaleCrypto() {
+  axios.get('https://api.whale-alert.io/feed.csv')
+    .then(function (response) {
+      var data = response['data'].split("\n")
+      for (const dataWhale of data) {
+        var item = dataWhale.split(",");
+        var data_whale = {
+        _id: new ObjectID(),
+        id: item[0],
+        time: item[1],
+        symbol: item[2],
+        priceusdt: item[3],
+        priceusd: item[4],
+        from: item[6],
+        to: item[8]
+      };
+      filter_whale(item[0],data_whale,parseFloat(item[4]),item[6],item[8],item[3],item[2],item[1])
+      }
+    })
+    .catch(function (error) {
+      console.log(error);
+    })
+}
+
+function filter_whale(id,data_whale,total,from,to,price,symbol,time) {
+  var query = {
+      "id": id
+  };
+    
+  var quote = db.collection('price_quote').findOne(query);
+
+  quote.then(function(result) {
+    var fromExchange,toExchange;
+    var formatMoney = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(total)
+    var coverTime = new Date(time*1000).toTimeString().replace(/.*(\d{2}:\d{2}:\d{2}).*/, "$1")
+    if (result == null)  {
+      db.collection('data_whale').insert(data_whale);
+        if (total > 500000) {
+          if (from == "") {
+            fromExchange = "(Chưa rõ nguồn)"
+          }else{
+            fromExchange = from.toUpperCase()
+          }
+
+          if (to == "") {
+            toExchange = "(Chưa rõ nguồn)"
+          }else{
+            toExchange = to.toUpperCase()
+          }
+
+          (async () => {
+              const idChannel = await getIDChannel();
+              bot.sendMessage(idChannel, '\u{1F51E}\u{1F51E} \n'+price+''+symbol.toUpperCase()+' ('+formatMoney+')'+'\nVừa được giao dịch từ '+fromExchange+' đến '+toExchange+'\nTime:'+coverTime);
+          })();
+        }
+    }
+  })
+
+}
 
 
 function insert_schedule_price(msg,time,crypto) {
