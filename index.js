@@ -83,6 +83,13 @@ CronJob.schedule('* 19 * * *', () => {
    timezone: "Asia/Ho_Chi_Minh"
  });
 
+CronJob.schedule('* 01 * * *', () => {
+  getSummingUpWhaleCryptoToday()
+}, {
+   scheduled: true,
+   timezone: "Asia/Ho_Chi_Minh"
+ });
+
 CronJob.schedule('30 * * * * *', () => {
   getWhaleCrypto()
 }, {
@@ -179,16 +186,20 @@ function getWhaleCrypto() {
       var data = response['data'].split("\n")
       for (const dataWhale of data) {
         var item = dataWhale.split(",");
+        let ts = Date.now();
+        let date_ob = new Date(ts);
+        let today = date_ob.getDate()+"/"+date_ob.getMonth() + 1+"/"+ date_ob.getFullYear();
         var data_whale = {
-        _id: new ObjectID(),
-        id: item[0],
-        time: item[1],
-        symbol: item[2],
-        priceusdt: item[3],
-        priceusd: item[4],
-        from: item[6],
-        to: item[8]
-      };
+          _id: new ObjectID(),
+          id: item[0],
+          time: item[1],
+          symbol: item[2],
+          priceusdt: item[3],
+          priceusd: item[4],
+          from: item[6],
+          to: item[8],
+          timestamp: today
+        };
       filter_whale(item[0],data_whale,parseFloat(item[4]),item[6],item[8],item[3],item[2],item[1])
       }
     })
@@ -202,7 +213,7 @@ function filter_whale(id,data_whale,total,from,to,price,symbol,time) {
       "id": id
   };
     
-  var quote = db.collection('price_quote').findOne(query);
+  var quote = db.collection('data_whale').findOne(query);
 
   quote.then(function(result) {
     var fromExchange,toExchange;
@@ -210,7 +221,7 @@ function filter_whale(id,data_whale,total,from,to,price,symbol,time) {
     var coverTime = new Date(time*1000).toTimeString().replace(/.*(\d{2}:\d{2}:\d{2}).*/, "$1")
     if (result == null)  {
       db.collection('data_whale').insert(data_whale);
-        if (total > 500000) {
+        if (total > 10000000) {
           if (from == "") {
             fromExchange = "(Chưa rõ nguồn)"
           }else{
@@ -231,6 +242,72 @@ function filter_whale(id,data_whale,total,from,to,price,symbol,time) {
     }
   })
 
+}
+
+function getSummingUpWhaleCryptoToday() {
+  let ts = Date.now();
+  let date_ob = new Date(ts);
+  let yesterday = date_ob.getDate()-1+"/"+date_ob.getMonth() + 1+"/"+ date_ob.getFullYear();
+  let dayBefore = date_ob.getDate()-2+"/"+date_ob.getMonth() + 1+"/"+ date_ob.getFullYear();
+  var query = {
+      "timestamp": yesterday
+  };
+  var query2 = {
+      "timestamp": dayBefore
+  };
+    
+  mongo.MongoClient.connect(process.env.MONGODB_URL_TWO, function(err, db) {
+    if (err) throw err;
+    var dbo = db.db("botcrypto");
+    dbo.collection("data_whale").find().toArray(function(err, result) {
+      if (err) throw err;
+      var sumVolume,sumVolumeBTC,sumVolumeUSDT,totalVolumeBTC,totalVolumeUSDT = 0;
+      var totalVolume = result.length;
+      for (let i = 0; i < result.length; i++) {
+        sumVolume += parseFloat(result[i].priceusd)
+        if (result[i].symbol == 'usdt') {
+          sumVolumeUSDT += parseFloat(result[i].priceusd)
+          totalVolumeUSDT += 1;
+        }
+        if (result[i].symbol == 'btc') {
+          sumVolumeBTC += parseFloat(result[i].priceusd)
+          totalVolumeBTC += 1;
+        }
+      }
+      insert_total_volume(sumVolume,sumVolumeBTC,sumVolumeUSDT,totalVolume,totalVolumeBTC,totalVolumeUSDT,yesterday)
+      dbo.collection("total_volume").find(query2).toArray(function(err2, result2) {
+        if (err2) throw err2;
+        var sumVolumePercent,sumVolumeBTCPercent,sumVolumeUSDTPercent,totalVolumePercent,totalVolumeBTCPercent,totalVolumeUSDTPercent = 0;
+        for (let i = 0; i < result2.length; i++) {
+          sumVolumePercent = ((sumVolume - parseFloat(result2.sumVolume))/100)*100;
+          sumVolumeBTCPercent = ((sumVolumeBTC - parseFloat(result2.sumVolumeBTC))/100)*100;
+          sumVolumeUSDTPercent = ((sumVolumeUSDT - parseFloat(result2.sumVolumeUSDT))/100)*100;
+          totalVolumePercent = ((totalVolume - parseFloat(result2.totalVolume))/100)*100;
+          totalVolumeBTCPercent = ((totalVolumeBTC - parseFloat(result2.totalVolumeBTC))/100)*100;
+          totalVolumeUSDTPercent = ((totalVolumeUSDT - parseFloat(result2.totalVolumeUSDT))/100)*100;
+        }
+        (async () => {
+            const idChannel = await getIDChannel();
+            bot.sendMessage(idChannel, 'Thống kê giao dịch ngày '+yesterday+'\n\nTổng số giao dịch :'+totalVolume+' ('+totalVolumePercent+')\n\nTổng số giao dịch Bitcoin:'+totalVolumeBTC+' ('+totalVolumeBTCPercent+')\n\nTổng số giao dịch USDT: '+totalVolumeUSDT+' ('+totalVolumeUSDTPercent+')\n\nTổng lượng giao dịch: '+new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(sumVolume)+' ('+sumVolumePercent+')\n\nTổng lượng giao dịch Bitcoin: '+new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(sumVolumeBTC)+' ('+sumVolumeBTCPercent+')\n\nTổng lượng giao dịch USDT: '+new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(sumVolumeUSDT)+' ('+sumVolumeUSDTPercent+')');
+        })();
+      });
+    });
+  });
+}
+
+
+function insert_total_volume(sumVolume,sumVolumeBTC,sumVolumeUSDT,totalVolume,totalVolumeBTC,totalVolumeUSDT,today) {
+  var total_volume = {
+      _id: new ObjectID(),
+      sumVolume: sumVolume,
+      sumVolumeBTC: sumVolumeBTC,
+      sumVolumeUSDT: sumVolumeUSDT,
+      totalVolume: totalVolume,
+      totalVolumeBTC: totalVolumeBTC,
+      totalVolumeUSDT: totalVolumeUSDT,
+      timestamp: today
+  };
+  db.collection('total_volume').insert(total_volume);
 }
 
 
@@ -364,6 +441,7 @@ function find_schedule_price(id) {
         }
     )
 }
+
 
 
 async function translateVN(msg) {
