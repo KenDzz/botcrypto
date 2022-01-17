@@ -221,7 +221,7 @@ function filter_whale(id,data_whale,total,from,to,price,symbol,time) {
     var coverTime = new Date(time*1000).toTimeString().replace(/.*(\d{2}:\d{2}:\d{2}).*/, "$1")
     if (result == null)  {
       db.collection('data_whale').insert(data_whale);
-        if (total > 10000000) {
+        if (total > 10000000 && symbol == 'btc') {
           if (from == "") {
             fromExchange = "(Chưa rõ nguồn)"
           }else{
