@@ -83,7 +83,7 @@ CronJob.schedule('* 19 * * *', () => {
    timezone: "Asia/Ho_Chi_Minh"
  });
 
-CronJob.schedule('* 01 * * *', () => {
+CronJob.schedule('* 1 * * *', () => {
   getSummingUpWhaleCryptoToday()
 }, {
    scheduled: true,
@@ -180,6 +180,19 @@ bot.on('message', (msg) => {
 })
 
 
+function apiSimSimi(chatId,msg) {
+  var urlEncode = encodeURI(`https://simsimi.info/api/?text=${msg}&lc=vn`)
+  axios.get(urlEncode)
+    .then(function (response) {
+      var data = JSON.parse(JSON.stringify(response['data']));
+      bot.sendMessage(chatId, data['success'])
+    })
+    .catch(function (error) {
+      console.log(error);
+    })
+}
+
+
 function getWhaleCrypto() {
   axios.get('https://api.whale-alert.io/feed.csv')
     .then(function (response) {
@@ -221,24 +234,24 @@ function filter_whale(id,data_whale,total,from,to,price,symbol,time) {
     var coverTime = new Date(time*1000).toTimeString().replace(/.*(\d{2}:\d{2}:\d{2}).*/, "$1")
     if (result == null)  {
       db.collection('data_whale').insert(data_whale);
-        if (total > 10000000 && symbol == 'btc') {
-          if (from == "") {
-            fromExchange = "(Chưa rõ nguồn)"
-          }else{
-            fromExchange = from.toUpperCase()
-          }
+        // if (total > 10000000 && symbol == 'btc') {
+        //   if (from == "") {
+        //     fromExchange = "(Chưa rõ nguồn)"
+        //   }else{
+        //     fromExchange = from.toUpperCase()
+        //   }
 
-          if (to == "") {
-            toExchange = "(Chưa rõ nguồn)"
-          }else{
-            toExchange = to.toUpperCase()
-          }
+        //   if (to == "") {
+        //     toExchange = "(Chưa rõ nguồn)"
+        //   }else{
+        //     toExchange = to.toUpperCase()
+        //   }
 
-          (async () => {
-              const idChannel = await getIDChannel();
-              bot.sendMessage(idChannel, '\u{1F51E}\u{1F51E} \n'+price+''+symbol.toUpperCase()+' ('+formatMoney+')'+'\nVừa được giao dịch từ '+fromExchange+' đến '+toExchange+'\nTime:'+coverTime);
-          })();
-        }
+        //   (async () => {
+        //       const idChannel = await getIDChannel();
+        //       bot.sendMessage(idChannel, '\u{1F51E}\u{1F51E} \n'+price+''+symbol.toUpperCase()+' ('+formatMoney+')'+'\nVừa được giao dịch từ '+fromExchange+' đến '+toExchange+'\nTime:'+coverTime);
+        //   })();
+        // }
     }
   })
 
@@ -261,7 +274,11 @@ function getSummingUpWhaleCryptoToday() {
     var dbo = db.db("botcrypto");
     dbo.collection("data_whale").find().toArray(function(err, result) {
       if (err) throw err;
-      var sumVolume,sumVolumeBTC,sumVolumeUSDT,totalVolumeBTC,totalVolumeUSDT = 0;
+      var sumVolume = 0;
+      var sumVolumeBTC = 0;
+      var sumVolumeUSDT = 0;
+      var totalVolumeBTC = 0;
+      var totalVolumeUSDT = 0;
       var totalVolume = result.length;
       for (let i = 0; i < result.length; i++) {
         sumVolume += parseFloat(result[i].priceusd)
@@ -277,7 +294,12 @@ function getSummingUpWhaleCryptoToday() {
       insert_total_volume(sumVolume,sumVolumeBTC,sumVolumeUSDT,totalVolume,totalVolumeBTC,totalVolumeUSDT,yesterday)
       dbo.collection("total_volume").find(query2).toArray(function(err2, result2) {
         if (err2) throw err2;
-        var sumVolumePercent,sumVolumeBTCPercent,sumVolumeUSDTPercent,totalVolumePercent,totalVolumeBTCPercent,totalVolumeUSDTPercent = 0;
+        var sumVolumePercent = 0;
+        var sumVolumeBTCPercent = 0;
+        var sumVolumeUSDTPercent = 0;
+        var totalVolumePercent = 0;
+        var totalVolumeBTCPercent = 0;
+        var totalVolumeUSDTPercent = 0;
         for (let i = 0; i < result2.length; i++) {
           sumVolumePercent = ((sumVolume - parseFloat(result2.sumVolume))/100)*100;
           sumVolumeBTCPercent = ((sumVolumeBTC - parseFloat(result2.sumVolumeBTC))/100)*100;
@@ -418,7 +440,7 @@ function find_price_quote(id,chatId) {
       }
     }, 
     function(err) {
-      if (err != "") {
+      if (err) {
         console.log("Error: "+err)
       }
     })
@@ -630,6 +652,11 @@ bot.onText(/\/c (.+)/, (msg, data) => {
   var symbol = crypto['0'].toUpperCase()+"USDT"
   var urlChart = "https://api.chart-img.com/v1/tradingview/advanced-chart?height=400&symbol="+symbol
   checkImgChart(chatId, urlChart)
+})
+
+bot.onText(/\/s (.+)/, (msg, data) => {
+  const chatId = msg.chat.id
+  apiSimSimi(chatId,data[1])
 })
 
 bot.on('message', (msg) => {
