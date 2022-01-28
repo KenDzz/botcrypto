@@ -42,6 +42,16 @@ function getIDChannel() {
     });
 }
 
+function getIDChannel2() {
+    return new Promise(resolve => {
+        bot.getChat(process.env.TELEGRAMM_CHANNEL_2).then(
+          (channel) => {
+            resolve(channel['id'])
+          }
+        )
+    });
+}
+
 
 
 // Connect to the db
@@ -76,14 +86,14 @@ if(process.env.NODE_ENV !== "test") {
       }, 3000)
   });
 }
-CronJob.schedule('* 19 * * *', () => {
+CronJob.schedule('00 00 19 * * *', () => {
   getNews()
 }, {
    scheduled: true,
    timezone: "Asia/Ho_Chi_Minh"
  });
 
-CronJob.schedule('* 1 * * *', () => {
+CronJob.schedule('00 00 1 * * *', () => {
   getSummingUpWhaleCryptoToday()
 }, {
    scheduled: true,
@@ -96,6 +106,46 @@ CronJob.schedule('30 * * * * *', () => {
    scheduled: true,
    timezone: "Asia/Ho_Chi_Minh"
  });
+
+CronJob.schedule('50 59 23 31 01 *', () => {
+  happyNewYear()
+}, {
+   scheduled: true,
+   timezone: "Asia/Ho_Chi_Minh"
+ });
+
+CronJob.schedule('00 00 00 01 02 *', () => {
+  happyNewYear2()
+}, {
+   scheduled: true,
+   timezone: "Asia/Ho_Chi_Minh"
+ });
+
+function happyNewYear() {
+  (async () => {
+      const idChannel = await getIDChannel();
+      bot.sendMessage(idChannel, `\u{1F386}\u{1F386}\u{1F386}\u{1F386}\n\nVậy là chỉ còn 10s nữa thôi là bước qua năm mới, Năm Nhâm Dần.`);
+  })();
+
+  (async () => {
+      const idChannel2 = await getIDChannel2();
+      bot.sendMessage(idChannel2, `\u{1F386}\u{1F386}\u{1F386}\u{1F386}\n\nVậy là chỉ còn 10s nữa thôi là bước qua năm mới, Năm Nhâm Dần.`);
+  })();
+}
+
+function happyNewYear2() {
+  (async () => {
+      const idChannel = await getIDChannel();
+      bot.sendMessage(idChannel, `\u{1F386}\u{1F386}\u{1F386}\u{1F386}\n\nNăm mới Nhâm Dần, Bot Crypto VIP kính chúc mọi người đón xuân sum vầy, ấm áp, an vui và vạn sự như ý, thành công rực rỡ! Happy new year!`);
+      bot.sendVideo(idChannel, './images/happynewyear.mp4')
+  })();
+
+  (async () => {
+      const idChannel2 = await getIDChannel2();
+      bot.sendMessage(idChannel2, `\u{1F386}\u{1F386}\u{1F386}\u{1F386}\n\nNăm mới Nhâm Dần, Bot Crypto VIP kính chúc mọi người đón xuân sum vầy, ấm áp, an vui và vạn sự như ý, thành công rực rỡ! Happy new year!`);
+      bot.sendVideo(idChannel2, './images/happynewyear.mp4')
+  })();
+}
 
 
 function getToday() {
